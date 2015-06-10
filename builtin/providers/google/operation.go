@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"google.golang.org/api/compute/v1"
+	"google.golang.org/api/container/v1beta1"
 
 	"github.com/hashicorp/terraform/helper/resource"
 )
@@ -25,8 +26,17 @@ type OperationWaiter struct {
 	Op      *compute.Operation
 	Project string
 	Region  string
-	Zone    string
+	Zone string
 	Type    OperationWaitType
+}
+
+type ContainerOperationWaiter struct {
+	Service *container.Service
+	Op *container.Operation
+	Project string
+	Region string
+	Zone string
+	Type OperationWaitType
 }
 
 func (w *OperationWaiter) RefreshFunc() resource.StateRefreshFunc {
@@ -57,7 +67,37 @@ func (w *OperationWaiter) RefreshFunc() resource.StateRefreshFunc {
 	}
 }
 
+func (w *ContainerOperationWaiter) RefreshFunc() resource.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		var op *container.Operation
+		var err error
+
+		switch w.Type {
+		case OperationWaitZone:
+			op, err = w.Service.Projects.Zones.Operations.Get(
+				w.Project, w.Zone, w.Op.Name).Do()
+		default:
+			return nil, "bad-type", fmt.Errorf(
+				"Invalid wait type: %#v", w.Type)
+		}
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return op, op.Status, nil
+	}
+}
+
 func (w *OperationWaiter) Conf() *resource.StateChangeConf {
+	return &resource.StateChangeConf{
+		Pending: []string{"PENDING", "RUNNING"},
+		Target:  "DONE",
+		Refresh: w.RefreshFunc(),
+	}
+}
+
+func (w *ContainerOperationWaiter) Conf() *resource.StateChangeConf {
 	return &resource.StateChangeConf{
 		Pending: []string{"PENDING", "RUNNING"},
 		Target:  "DONE",
@@ -78,3 +118,17 @@ func (e OperationError) Error() string {
 
 	return buf.String()
 }
+
+// // ContainerOperationError wraps container.OperationError and implements the
+// // error interface so it can be returned.
+// type ContainerOperationError container.OperationError
+//
+// func (e ContainerOperationError) Error() string {
+// 	var buf bytes.Buffer
+//
+// 	for _, err := range e.Errors {
+// 		buf.WriteString(err.Message + "\n")
+// 	}
+//
+// 	return buf.String()
+// }

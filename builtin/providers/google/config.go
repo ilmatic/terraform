@@ -16,6 +16,7 @@ import (
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/storage/v1"
+	"google.golang.org/api/container/v1beta1"
 )
 
 // Config is the configuration structure used to instantiate the Google
@@ -28,6 +29,7 @@ type Config struct {
 	clientCompute *compute.Service
 	clientDns     *dns.Service
 	clientStorage *storage.Service
+	clientContainer *container.Service
 }
 
 func (c *Config) loadAndValidate() error {
